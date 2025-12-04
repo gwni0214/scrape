@@ -79,3 +79,5 @@ async function scrapeAllCategories() {
 
 // 실행
 scrapeAllCategories();
+
+//git 등록 1204
