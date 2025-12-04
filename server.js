@@ -9,29 +9,9 @@ app.use(express.json());
 app.use(express.static("public"));
 
 /* ------------------------------
-   🔍 XCODE 자동 수집
+   🔥 xcode 고정 배열
 ------------------------------ */
-async function getXcodes() {
-  const url = "https://www.rocketsalad.co.kr/shop/shopbrand.html";
-
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0" }
-  });
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
-  const xcodes = new Set();
-
-  $("a").each((_, el) => {
-    const href = $(el).attr("href");
-    if (!href) return;
-
-    const match = href.match(/xcode=(\d+)/);
-    if (match) xcodes.add(match[1]);
-  });
-
-  return [...xcodes];
-}
+const categories = ["113", "115", "116", "118"];
 
 /* ------------------------------
    🧭 마지막 페이지 판별
@@ -42,7 +22,7 @@ function isLastPage($) {
 }
 
 /* ------------------------------
-   🔥 스크래핑 API (mcode 없음)
+   🔥 스크래핑 API (고정 xcode)
 ------------------------------ */
 app.post("/api/scrape", async (req, res) => {
   const keyword = req.body.keyword?.toLowerCase() ?? "";
@@ -50,25 +30,26 @@ app.post("/api/scrape", async (req, res) => {
   const debugLogs = [];
 
   try {
-    const xcodes = await getXcodes();
-    debugLogs.push("수집된 XCODE: " + JSON.stringify(xcodes));
+    debugLogs.push("사용할 XCODE: " + JSON.stringify(categories));
 
-    if (xcodes.length === 0) {
-      debugLogs.push("🚨 XCODE를 찾지 못함.");
-      return res.json({ count: 0, items: [], debug: debugLogs });
-    }
-
-    for (const xcode of xcodes) {
+    for (const xcode of categories) {
+      debugLogs.push(`\n=== XCODE ${xcode} 시작 ===`);
       let page = 1;
       let lastPage = false;
 
       while (!lastPage) {
         const url = `https://www.rocketsalad.co.kr/shop/shopbrand.html?xcode=${xcode}&type=X&page=${page}`;
-        debugLogs.push("[SCRAPE] " + url);
+        debugLogs.push(`[SCRAPE] ${url}`);
 
-        const response = await fetch(url, {
-          headers: { "User-Agent": "Mozilla/5.0" }
-        });
+        let response;
+        try {
+          response = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0" }
+          });
+        } catch (err) {
+          debugLogs.push(`❌ Fetch 실패: ${err.message}`);
+          break;
+        }
 
         const html = await response.text();
         const $ = cheerio.load(html);
@@ -76,7 +57,10 @@ app.post("/api/scrape", async (req, res) => {
         const tables = $("td > table[cellpadding='0']");
         debugLogs.push(`[PAGE] xcode=${xcode}, page=${page}, items=${tables.length}`);
 
-        if (tables.length === 0) break;
+        if (tables.length === 0) {
+          debugLogs.push("⚠️ table=0 → 이 카테고리 종료");
+          break;
+        }
 
         tables.each((_, el) => {
           const title = $(el).find("span.Tahoma").first().text().trim();
@@ -96,19 +80,24 @@ app.post("/api/scrape", async (req, res) => {
           });
         });
 
+        // 마지막 페이지면 종료
         lastPage = isLastPage($);
+        if (lastPage) {
+          debugLogs.push("🔚 마지막 페이지 도달");
+        }
+
         page++;
       }
     }
 
-    return res.json({
+    res.json({
       count: results.length,
       items: results,
       debug: debugLogs
     });
 
   } catch (err) {
-    return res.status(500).json({
+    res.status(500).json({
       error: err.message,
       debug: debugLogs
     });
