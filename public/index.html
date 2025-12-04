@@ -1,116 +1,44 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <title>RocketSalad Scraper</title>
-  <style>
-    body {
-      font-family: Arial;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
+<script>
+  async function search() {
+    const keyword = document.getElementById("keywordInput").value.trim();
+
+    if (!keyword) {
+      alert("검색어를 입력하세요!");
+      return;
     }
 
-    .search-box {
-      display: flex;
-      gap: 10px;
+    document.getElementById("status").innerText = "검색 중...";
+    document.getElementById("results").innerHTML = "";
+
+    try {
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword })
+      });
+
+      const data = await res.json();
+
+      document.getElementById("status").innerText =
+        `검색 완료: ${data.count}개 발견`;
+
+      const container = document.getElementById("results");
+
+      data.items.forEach(item => {
+        container.innerHTML += `
+          <div class="card">
+            <a href="${item.link}" target="_blank">
+              <img src="${item.img}" alt="">
+            </a>
+            <div class="title">${item.title}</div>
+            <div class="price">${item.price}</div>
+          </div>
+        `;
+      });
+
+    } catch (err) {
+      document.getElementById("status").innerText = "에러 발생";
+      console.error(err);
     }
-
-    input {
-      flex: 1;
-      padding: 10px;
-      font-size: 16px;
-    }
-
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .results {
-      margin-top: 30px;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 20px;
-    }
-
-    .card {
-      border: 1px solid #ddd;
-      padding: 10px;
-      border-radius: 8px;
-    }
-
-    .card img {
-      width: 100%;
-      border-radius: 6px;
-    }
-
-    .title {
-      font-weight: bold;
-      margin-top: 10px;
-    }
-
-    .price {
-      margin-top: 5px;
-      color: green;
-      font-weight: bold;
-    }
-  </style>
-</head>
-<body>
-
-  <h1>RocketSalad Scraper</h1>
-
-  <div class="search-box">
-    <input id="keywordInput" type="text" placeholder="검색어 입력 (예: Brooks)" />
-    <button onclick="search()">검색</button>
-  </div>
-
-  <div id="status"></div>
-  <div class="results" id="results"></div>
-
-  <script>
-    async function search() {
-      const keyword = document.getElementById("keywordInput").value.trim();
-
-      if (!keyword) {
-        alert("검색어를 입력하세요!");
-        return;
-      }
-
-      document.getElementById("status").innerText = "검색 중...";
-      document.getElementById("results").innerHTML = "";
-
-      try {
-        const res = await fetch(`/scrape?keyword=${keyword}`);
-        // const res = await fetch(`http://localhost:3000/scrape?keyword=${keyword}`);
-
-        const data = await res.json();
-
-        document.getElementById("status").innerText =
-          `검색 완료: ${data.count}개 발견`;
-
-        const container = document.getElementById("results");
-
-        data.items.forEach(item => {
-          container.innerHTML += `
-            <div class="card">
-              <a href="${item.link}" target="_blank">
-                <img src="${item.img}" alt="">
-              </a>
-              <div class="title">${item.title}</div>
-              <div class="price">${item.price}</div>
-            </div>
-          `;
-        });
-
-      } catch (err) {
-        document.getElementById("status").innerText = "에러 발생";
-        console.error(err);
-      }
-    }
-  </script>
-
-</body>
-</html>
+  }
+</script>

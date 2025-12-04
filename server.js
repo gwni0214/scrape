@@ -1,29 +1,4 @@
-// import express from "express";
-// import cors from "cors";
-// import scrape from "./scraper.js";
 
-// const app = express();
-// app.use(cors());
-// app.use(express.static("public"));  // 프론트엔드 정적 파일 제공
-
-// app.get("/scrape", async (req, res) => {
-//   const keyword = req.query.keyword;
-//   if (!keyword) return res.status(400).json({ error: "keyword is required" });
-
-//   try {
-//     const results = await scrape(keyword);
-//     res.json({
-//       count: results.length,
-//       items: results
-//     });
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// });
-
-// app.listen(3000, () => {
-//   console.log("🚀 서버 실행 중: http://localhost:3000");
-// });
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
