@@ -80,4 +80,4 @@ async function scrapeAllCategories() {
 // 실행
 scrapeAllCategories();
 
-//git 등록 1204
+//git 등록 120412
