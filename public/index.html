@@ -2,87 +2,181 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>RocketSalad Scraper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocket Salad Scraper</title>
+
   <style>
     body {
-      font-family: Arial;
-      max-width: 800px;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #fafafa;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
       margin: 0 auto;
       padding: 20px;
     }
 
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    /* 🔍 검색 영역 */
     .search-box {
       display: flex;
       gap: 10px;
+      margin-bottom: 20px;
     }
 
-    input {
+    .search-box input {
       flex: 1;
-      padding: 10px;
-      font-size: 16px;
+      padding: 14px;
+      font-size: 18px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
     }
 
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
+    .search-box button {
+      padding: 14px 20px;
+      font-size: 18px;
+      border-radius: 10px;
+      border: none;
+      background: #007aff;
+      color: white;
+      font-weight: bold;
       cursor: pointer;
     }
+    .search-box button:active {
+      background: #005bb5;
+    }
 
-    .results {
-      margin-top: 30px;
+    /* 🔄 로딩 */
+    #loading {
+      text-align: center;
+      font-size: 18px;
+      margin: 20px 0;
+      display: none;
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 4px solid #ddd;
+      border-top: 4px solid #007aff;
+      border-radius: 50%;
+      margin: 10px auto;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 🛒 상품 카드 그리드 */
+    .grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 20px;
+      grid-template-columns: repeat(1, 1fr); /* 기본 1열 */
+      gap: 16px;
     }
 
-    .card {
-      border: 1px solid #ddd;
-      padding: 10px;
-      border-radius: 8px;
+    @media (min-width: 560px) {
+      .grid {
+        grid-template-columns: repeat(2, 1fr); /* 태블릿 */
+      }
     }
 
-    .card img {
+    @media (min-width: 900px) {
+      .grid {
+        grid-template-columns: repeat(3, 1fr); /* PC */
+      }
+    }
+
+    .item {
+      background: white;
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      transition: 0.2s;
+    }
+
+    .item:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .item img {
       width: 100%;
-      border-radius: 6px;
+      height: auto;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      object-fit: cover;
     }
 
-    .title {
-      font-weight: bold;
-      margin-top: 10px;
+    .item-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      word-break: break-word;
+      line-height: 1.3;
     }
 
-    .price {
-      margin-top: 5px;
-      color: green;
+    .item-price {
+      font-size: 15px;
       font-weight: bold;
+      color: #007aff;
+      margin-bottom: 10px;
     }
+
+    .item-link {
+      margin-top: auto;
+      padding: 10px;
+      text-align: center;
+      background: #007aff;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
   </style>
 </head>
 <body>
+  <div class="container">
+    <h1>🚀 Rocket Salad Search</h1>
 
-  <h1>RocketSalad Scraper</h1>
+    <!-- 🔍 검색 UI -->
+    <div class="search-box">
+      <input id="keyword" type="text" placeholder="예: nike, vintage..." />
+      <button onclick="search()">검색</button>
+    </div>
 
-  <div class="search-box">
-    <input id="keywordInput" type="text" placeholder="검색어 입력 (예: Brooks)" />
-    <button onclick="search()">검색</button>
+    <!-- 🔄 로딩 -->
+    <div id="loading">
+      <div class="spinner"></div>
+      검색 중입니다...
+    </div>
+
+    <!-- 🛒 결과 -->
+    <div id="results" class="grid"></div>
   </div>
 
-  <div id="status"></div>
-  <div class="results" id="results"></div>
-
   <script>
-  async function search() {
-    const keyword = document.getElementById("keywordInput").value.trim();
+    async function search() {
+      const keyword = document.getElementById("keyword").value.trim();
+      if (!keyword) return alert("검색어를 입력하세요.");
 
-    if (!keyword) {
-      alert("검색어를 입력하세요!");
-      return;
-    }
+      document.getElementById("loading").style.display = "block";
+      document.getElementById("results").innerHTML = "";
 
-    document.getElementById("status").innerText = "검색 중...";
-    document.getElementById("results").innerHTML = "";
-
-    try {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -90,33 +184,29 @@
       });
 
       const data = await res.json();
-      console.log("DEBUG:", data.debug);
+      document.getElementById("loading").style.display = "none";
 
-
-      document.getElementById("status").innerText =
-        `검색 완료: ${data.count}개 발견`;
-
-      const container = document.getElementById("results");
-
-      data.items.forEach(item => {
-        container.innerHTML += `
-          <div class="card">
-            <a href="${item.link}" target="_blank">
-              <img src="${item.img}" alt="">
-            </a>
-            <div class="title">${item.title}</div>
-            <div class="price">${item.price}</div>
-          </div>
-        `;
-      });
-
-    } catch (err) {
-      document.getElementById("status").innerText = "에러 발생";
-      console.error(err);
+      renderResults(data.items);
     }
-  }
-</script>
 
+    function renderResults(items) {
+      const box = document.getElementById("results");
+      box.innerHTML = "";
 
+      items.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "item";
+
+        card.innerHTML = `
+          <img src="${item.img}" />
+          <div class="item-title">${item.title}</div>
+          <div class="item-price">${item.price}</div>
+          <a class="item-link" href="${item.link}" target="_blank">상품 보기</a>
+        `;
+
+        box.appendChild(card);
+      });
+    }
+  </script>
 </body>
 </html>
