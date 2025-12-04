@@ -8,31 +8,45 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-// 🔍 xcode 자동 수집
+/* ------------------------------
+   🔍 1. XCODE 수집
+------------------------------ */
 async function getXcodes() {
   const url = "https://www.rocketsalad.co.kr/shop/shopbrand.html";
 
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+  console.log("[XCODE] 요청:", url);
+
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
   const html = await res.text();
   const $ = cheerio.load(html);
 
   const xcodes = new Set();
 
-  $("area").each((_, el) => {
+  $("a").each((_, el) => {
     const href = $(el).attr("href");
     if (!href) return;
     const match = href.match(/xcode=(\d+)/);
     if (match) xcodes.add(match[1]);
   });
 
+  console.log("[XCODE] 수집 결과:", [...xcodes]);
+
   return [...xcodes];
 }
 
-// 🔍 mcode 자동 수집
+/* ------------------------------
+   🔍 2. MCODE 수집
+------------------------------ */
 async function getMcodes(xcode) {
   const url = `https://www.rocketsalad.co.kr/shop/shopbrand.html?xcode=${xcode}&type=X`;
 
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+  console.log(`\n[MCODE] XCODE=${xcode} 요청:`, url);
+
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
   const html = await res.text();
   const $ = cheerio.load(html);
 
@@ -46,29 +60,45 @@ async function getMcodes(xcode) {
     if (match) mcodes.add(match[1]);
   });
 
+  console.log(`[MCODE] XCODE=${xcode} → MCODE 수집 결과:`, [...mcodes]);
+
   return [...mcodes];
 }
 
-// 마지막 페이지 판단
+/* ------------------------------
+   🧭 3. 마지막 페이지 판별
+------------------------------ */
 function isLastPage($) {
   const nextBtn = $("a:contains('다음')");
   return nextBtn.length === 0;
 }
 
-
-// 🔥 전체 스크래핑 API
+/* ------------------------------
+   🧨 4. 전체 스크래핑 API
+------------------------------ */
 app.post("/api/scrape", async (req, res) => {
   const keyword = req.body.keyword?.toLowerCase() ?? "";
-  const results = [];
+
+  console.log("\n=========================");
+  console.log("[SEARCH] 요청됨:", keyword);
+  console.log("=========================");
+
+  let results = [];
+  let debugLogs = []; // 프론트에도 보여줄 디버깅 로그
 
   try {
     const xcodes = await getXcodes();
-    console.log("수집된 Xcode:", xcodes);
+    debugLogs.push("수집된 XCODE: " + JSON.stringify(xcodes));
+
+    if (xcodes.length === 0) {
+      debugLogs.push("🚨 XCODE를 하나도 찾지 못했습니다.");
+      return res.json({ count: 0, items: [], debug: debugLogs });
+    }
 
     for (const xcode of xcodes) {
       const mcodes = await getMcodes(xcode);
+      debugLogs.push(`XCODE=${xcode} → MCODE: ${JSON.stringify(mcodes)}`);
 
-      // mcode가 없으면 단일 xcode 루프
       const mcodeList = mcodes.length > 0 ? mcodes : [null];
 
       for (const mcode of mcodeList) {
@@ -80,7 +110,8 @@ app.post("/api/scrape", async (req, res) => {
             ? `https://www.rocketsalad.co.kr/shop/shopbrand.html?xcode=${xcode}&mcode=${mcode}&type=X&page=${page}`
             : `https://www.rocketsalad.co.kr/shop/shopbrand.html?xcode=${xcode}&type=X&page=${page}`;
 
-          console.log("스크래핑:", url);
+          console.log("[SCRAPE]", url);
+          debugLogs.push("[SCRAPE] " + url);
 
           const response = await fetch(url, {
             headers: { "User-Agent": "Mozilla/5.0" }
@@ -90,6 +121,12 @@ app.post("/api/scrape", async (req, res) => {
           const $ = cheerio.load(html);
 
           const tables = $("td > table[cellpadding='0']");
+          debugLogs.push(`[PAGE] xcode=${xcode}, mcode=${mcode}, page=${page}, 상품 수=${tables.length}`);
+
+          if (tables.length === 0) {
+            debugLogs.push(`🚨 상품이 0개 — 페이지 종료`);
+            break;
+          }
 
           tables.each((_, el) => {
             const title = $(el).find("span.Tahoma").first().text().trim();
@@ -116,13 +153,17 @@ app.post("/api/scrape", async (req, res) => {
       }
     }
 
-    res.json({ count: results.length, items: results });
+    res.json({
+      count: results.length,
+      items: results,
+      debug: debugLogs
+    });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 서버 오류:", err);
+    res.status(500).json({ error: err.message, debug: debugLogs });
   }
 });
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
