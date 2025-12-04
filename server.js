@@ -9,7 +9,7 @@ app.use(express.json());
 app.use(express.static("public"));
 
 /* ------------------------------
-   🔥 xcode 고정 배열
+   🔧 사용할 카테고리(XCODE)
 ------------------------------ */
 const categories = ["113", "115", "116", "118"];
 
@@ -22,18 +22,18 @@ function isLastPage($) {
 }
 
 /* ------------------------------
-   🔥 스크래핑 API (고정 xcode)
+   🔥 스크래핑 API
 ------------------------------ */
 app.post("/api/scrape", async (req, res) => {
   const keyword = req.body.keyword?.toLowerCase() ?? "";
   const results = [];
   const debugLogs = [];
+  const seen = new Set(); // 🔥 중복 방지
 
   try {
     debugLogs.push("사용할 XCODE: " + JSON.stringify(categories));
 
     for (const xcode of categories) {
-      debugLogs.push(`\n=== XCODE ${xcode} 시작 ===`);
       let page = 1;
       let lastPage = false;
 
@@ -41,15 +41,9 @@ app.post("/api/scrape", async (req, res) => {
         const url = `https://www.rocketsalad.co.kr/shop/shopbrand.html?xcode=${xcode}&type=X&page=${page}`;
         debugLogs.push(`[SCRAPE] ${url}`);
 
-        let response;
-        try {
-          response = await fetch(url, {
-            headers: { "User-Agent": "Mozilla/5.0" }
-          });
-        } catch (err) {
-          debugLogs.push(`❌ Fetch 실패: ${err.message}`);
-          break;
-        }
+        const response = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0" }
+        });
 
         const html = await response.text();
         const $ = cheerio.load(html);
@@ -57,19 +51,20 @@ app.post("/api/scrape", async (req, res) => {
         const tables = $("td > table[cellpadding='0']");
         debugLogs.push(`[PAGE] xcode=${xcode}, page=${page}, items=${tables.length}`);
 
-        if (tables.length === 0) {
-          debugLogs.push("⚠️ table=0 → 이 카테고리 종료");
-          break;
-        }
+        if (tables.length === 0) break;
 
         tables.each((_, el) => {
           const title = $(el).find("span.Tahoma").first().text().trim();
-          const price = $(el).find("span.mk_price").text().trim();
+          const price = $(el).find("span.mk_price").first().text().trim(); // 🔥 가격 중복 해결 (first())
           const link = $(el).find("a").attr("href");
           const img = $(el).find("img").attr("src");
 
           if (!title) return;
           if (keyword && !title.toLowerCase().includes(keyword)) return;
+
+          const productId = link; // 🔥 중복 식별 키
+          if (seen.has(productId)) return;
+          seen.add(productId);
 
           results.push({
             xcode,
@@ -80,24 +75,19 @@ app.post("/api/scrape", async (req, res) => {
           });
         });
 
-        // 마지막 페이지면 종료
         lastPage = isLastPage($);
-        if (lastPage) {
-          debugLogs.push("🔚 마지막 페이지 도달");
-        }
-
         page++;
       }
     }
 
-    res.json({
+    return res.json({
       count: results.length,
       items: results,
       debug: debugLogs
     });
 
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       error: err.message,
       debug: debugLogs
     });
