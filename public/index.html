@@ -90,6 +90,8 @@
       });
 
       const data = await res.json();
+      console.log("DEBUG:", data.debug);
+
 
       document.getElementById("status").innerText =
         `검색 완료: ${data.count}개 발견`;
