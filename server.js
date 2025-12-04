@@ -8,38 +8,28 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-/* ------------------------------
-   🔧 사용할 카테고리(XCODE)
------------------------------- */
+// 🔥 사용할 카테고리
 const categories = ["113", "115", "116", "118"];
 
-/* ------------------------------
-   🧭 마지막 페이지 판별
------------------------------- */
+// 🔍 마지막 페이지 판별
 function isLastPage($) {
-  const nextBtn = $("a:contains('다음')");
-  return nextBtn.length === 0;
+  return $("a:contains('다음')").length === 0;
 }
 
-/* ------------------------------
-   🔥 스크래핑 API
------------------------------- */
+// 🔥 스크래핑 API
 app.post("/api/scrape", async (req, res) => {
   const keyword = req.body.keyword?.toLowerCase() ?? "";
   const results = [];
-  const debugLogs = [];
-  const seen = new Set(); // 🔥 중복 방지
+  const debug = [];
+  const seen = new Set();
 
   try {
-    debugLogs.push("사용할 XCODE: " + JSON.stringify(categories));
-
     for (const xcode of categories) {
       let page = 1;
-      let lastPage = false;
 
-      while (!lastPage) {
+      while (true) {
         const url = `https://www.rocketsalad.co.kr/shop/shopbrand.html?xcode=${xcode}&type=X&page=${page}`;
-        debugLogs.push(`[SCRAPE] ${url}`);
+        debug.push(`요청: ${url}`);
 
         const response = await fetch(url, {
           headers: { "User-Agent": "Mozilla/5.0" }
@@ -49,22 +39,22 @@ app.post("/api/scrape", async (req, res) => {
         const $ = cheerio.load(html);
 
         const tables = $("td > table[cellpadding='0']");
-        debugLogs.push(`[PAGE] xcode=${xcode}, page=${page}, items=${tables.length}`);
+        debug.push(`xcode=${xcode} page=${page} found=${tables.length}`);
 
         if (tables.length === 0) break;
 
         tables.each((_, el) => {
           const title = $(el).find("span.Tahoma").first().text().trim();
-          const price = $(el).find("span.mk_price").first().text().trim(); // 🔥 가격 중복 해결 (first())
+          const price = $(el).find("span.mk_price").first().text().trim();
           const link = $(el).find("a").attr("href");
           const img = $(el).find("img").attr("src");
 
           if (!title) return;
           if (keyword && !title.toLowerCase().includes(keyword)) return;
 
-          const productId = link; // 🔥 중복 식별 키
-          if (seen.has(productId)) return;
-          seen.add(productId);
+          const id = link;
+          if (seen.has(id)) return;
+          seen.add(id);
 
           results.push({
             xcode,
@@ -75,27 +65,29 @@ app.post("/api/scrape", async (req, res) => {
           });
         });
 
-        lastPage = isLastPage($);
+        if (isLastPage($)) break;
         page++;
       }
     }
 
     return res.json({
+      success: true,
       count: results.length,
       items: results,
-      debug: debugLogs
+      debug
     });
 
   } catch (err) {
+    console.error("SERVER ERROR:", err);
+
     return res.status(500).json({
+      success: false,
       error: err.message,
-      debug: debugLogs
+      debug
     });
   }
 });
 
-/* ------------------------------
-   서버 시작
------------------------------- */
+// 서버 시작
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
