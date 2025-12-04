@@ -83,8 +83,8 @@
       document.getElementById("results").innerHTML = "";
 
       try {
-        // const res = await fetch(`/scrape?keyword=${keyword}`);
-        const res = await fetch(`http://localhost:3000/scrape?keyword=${keyword}`);
+        const res = await fetch(`/scrape?keyword=${keyword}`);
+        // const res = await fetch(`http://localhost:3000/scrape?keyword=${keyword}`);
 
         const data = await res.json();
 
